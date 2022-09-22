@@ -181,8 +181,8 @@ class InteractiveDemoApp(ttk.Frame):
             ], title="Chose an image")
 
             if len(filename) > 0:
-                image = cv2.cvtColor(cv2.imread(filename), cv2.COLOR_BGR2RGB)
-                self.controller.set_image(image)
+                self.image = cv2.cvtColor(cv2.imread(filename), cv2.COLOR_BGR2RGB)
+                self.controller.set_image(self.image)
                 self.save_mask_btn.configure(state=tk.NORMAL)
                 self.load_mask_btn.configure(state=tk.NORMAL)
 
@@ -203,7 +203,39 @@ class InteractiveDemoApp(ttk.Frame):
                 if mask.max() < 256:
                     mask = mask.astype(np.uint8)
                     mask *= 255 // mask.max()
-                cv2.imwrite(filename, mask)
+
+                alpha = np.where(mask == 0, 0, 255)
+                rgb_image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
+                transparent_mask = np.dstack([rgb_image, alpha])
+
+                h = self.image.shape[0]
+                w = self.image.shape[1]
+                min_px = [w + 100, h + 100]
+                max_px = [-1, -1]
+                for i in range(h):
+                    for j in range(w):
+                        pix_value = mask[i, j]
+                        if pix_value > 0:
+                            if min_px[1] > i:
+                                min_px[1] = i
+                            if min_px[0] > j:
+                                min_px[0] = j
+
+                            if max_px[1] < i:
+                                max_px[1] = i
+                            if max_px[0] < j:
+                                max_px[0] = j
+
+                if min_px == [w + 100, h + 100]:
+                    min_px = [0, 0]
+                if max_px == [-1, -1]:
+                    max_px = [w, h]
+
+                cv2.imwrite(
+                    filename,
+                    transparent_mask[min_px[1]:max_px[1],
+                    min_px[0]:max_px[0]]
+                )
 
     def _load_mask_callback(self):
         if not self.controller.net.with_prev_mask:
